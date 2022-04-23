@@ -1,21 +1,24 @@
 package main
 
 import (
-	"fmt"
 	"github.com/octane0411/gout"
-	"net/http"
 )
 
 func main() {
 	r := gout.New()
-	r.GET("/", func(w http.ResponseWriter, req *http.Request) {
-		fmt.Fprintf(w, "URL.Path = %q\n", req.URL.Path)
+	r.GET("/", func(c *gout.Context) {
+		c.HTML(200, "<h1>Hello Gout</h1>")
 	})
 
-	r.GET("/hello", func(w http.ResponseWriter, req *http.Request) {
-		for k, v := range req.Header {
-			fmt.Fprintf(w, "Header[%q] = %q\n", k, v)
-		}
+	r.GET("/hello", func(c *gout.Context) {
+		c.String(200, "hello %s, you're at %s\n", c.Query("name"), c.Path)
+	})
+
+	r.POST("/login", func(c *gout.Context) {
+		c.JSON(200, gout.H{
+			"username": c.PostForm("username"),
+			"password": c.PostForm("password"),
+		})
 	})
 	r.Run(":8000")
 }
