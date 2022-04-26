@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/octane0411/gout"
+	"net/http"
 )
 
 func main() {
@@ -14,11 +15,13 @@ func main() {
 		c.String(200, "hello %s, you're at %s\n", c.Query("name"), c.Path)
 	})
 
-	r.POST("/login", func(c *gout.Context) {
-		c.JSON(200, gout.H{
-			"username": c.PostForm("username"),
-			"password": c.PostForm("password"),
-		})
+	r.GET("/hello/:name", func(c *gout.Context) {
+		// expect /hello/geektutu
+		c.String(http.StatusOK, "hello %s, you're at %s\n", c.Param("name"), c.Path)
+	})
+
+	r.GET("/assets/*filepath", func(c *gout.Context) {
+		c.JSON(http.StatusOK, gout.H{"filepath": c.Param("filepath")})
 	})
 	r.Run(":8000")
 }
