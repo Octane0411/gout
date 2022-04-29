@@ -1,7 +1,9 @@
 package gout
 
 import (
+	"html/template"
 	"net/http"
+	"path"
 	"strings"
 )
 
@@ -10,9 +12,10 @@ type HandlerFunc func(ctx *Context)
 type Engine struct {
 	router *router
 	groups []*RouterGroup
-
 	// 这样Engine就拥有了group的所有能力，相当于engine是最顶层的分组
 	*RouterGroup
+	htmlTemplates *template.Template
+	funcMap       template.FuncMap
 }
 
 type RouterGroup struct {
@@ -28,6 +31,25 @@ func New() *Engine {
 	engine.RouterGroup = &RouterGroup{engine: engine}
 	engine.groups = []*RouterGroup{engine.RouterGroup}
 	return engine
+}
+
+func (group *RouterGroup) createStaticHandler(relativePath string, fs http.FileSystem) HandlerFunc {
+	absolutepath := path.Join(group.prefix, relativePath)
+	fileServer := http.StripPrefix(absolutepath, http.FileServer(fs))
+	return func(c *Context) {
+		file := c.Param("filepath")
+		if _, err := fs.Open(file); err != nil {
+			c.Status(http.StatusNotFound)
+			return
+		}
+		fileServer.ServeHTTP(c.Writer, c.Req)
+	}
+}
+
+func (group *RouterGroup) Static(relativePath string, root string) {
+	handler := group.createStaticHandler(relativePath, http.Dir(root))
+	urlPattern := path.Join(relativePath, "/*filepath")
+	group.GET(urlPattern, handler)
 }
 
 func (group *RouterGroup) Group(prefix string) *RouterGroup {
@@ -70,6 +92,14 @@ func (e *Engine) addRoute(method string, pattern string, handler HandlerFunc) {
 	e.router.addRoute(method, pattern, handler)
 }
 
+func (e *Engine) SetFuncMap(funcMap template.FuncMap) {
+	e.funcMap = funcMap
+}
+
+func (e *Engine) LoadHTMLGlob(pattern string) {
+	e.htmlTemplates = template.Must(template.New("").Funcs(e.funcMap).ParseGlob(pattern))
+}
+
 func (e *Engine) GET(pattern string, handler HandlerFunc) {
 	e.addRoute("GET", pattern, handler)
 }
@@ -107,5 +137,6 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 	c := newContext(w, req)
 	c.handlers = middlewares
+	c.engine = e.engine
 	e.router.handle(c)
 }

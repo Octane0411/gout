@@ -21,6 +21,8 @@ type Context struct {
 	// 中间件
 	handlers []HandlerFunc
 	index    int
+	// engine pointer
+	engine *Engine
 }
 
 func newContext(w http.ResponseWriter, req *http.Request) *Context {
@@ -35,9 +37,18 @@ func newContext(w http.ResponseWriter, req *http.Request) *Context {
 
 func (c *Context) Next() {
 	c.index++
-	s := len(c.handlers)
-	for ; c.index < s; c.index++ {
+	// 之所以需要遍历去执行是因为不是所有的handler都会调用Next()
+	// 调用Next()是为了控制在请求前后各实现一些行为
+	// 如果只作用在请求前，可以省略调用Next()
+	for c.index < len(c.handlers) {
+		// 因为是先执行，后index++，所以能保证每一个handler都会被执行，不会跳过
+		// 并且由于之前调用过index++，所以没有调用Next()的handler也会执行
+
+		// 最后一个handler是实际请求的handler，这个handler中不会有Next()
+		// 所以执行完这个handler后，index还是len(handlers)-1
+		// 此时index++后退出循环，返回
 		c.handlers[c.index](c)
+		c.index++
 	}
 }
 
@@ -78,10 +89,17 @@ func (c *Context) Data(code int, data []byte) {
 	c.Writer.Write(data)
 }
 
-func (c *Context) HTML(code int, html string) {
+func (c *Context) Fail(code int, data any) {
+	c.JSON(code, H{"message": data})
+}
+
+func (c *Context) HTML(code int, name string, data any) {
 	c.SetHeader("Content-Type", "text/html")
 	c.Status(code)
-	c.Writer.Write([]byte(html))
+	if err := c.engine.htmlTemplates.ExecuteTemplate(c.Writer, name, data); err != nil {
+		c.Fail(500, err.Error())
+	}
+	//c.Writer.Write([]byte(html))
 }
 
 func (c *Context) Param(key string) string {
