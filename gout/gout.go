@@ -34,11 +34,8 @@ func New() *Engine {
 }
 
 func Default() *Engine {
-	engine := &Engine{router: newRouter()}
-	engine.RouterGroup = &RouterGroup{engine: engine}
-	engine.groups = []*RouterGroup{engine.RouterGroup}
-	engine.Use(Logger())
-	engine.Use(Recovery())
+	engine := New()
+	engine.Use(Logger(), Recovery())
 	return engine
 }
 
